@@ -53,7 +53,7 @@ const LOTES = [
 ]
 
 async function gerarLote(instrucao: string, jaInseridas: string[]): Promise<any[]> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' })
 
   const prompt = `
 Você é um especialista em música litúrgica católica brasileira.
