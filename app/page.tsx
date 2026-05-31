@@ -28,6 +28,8 @@ type Repertoire = {
 type ApiResponse = {
   liturgy_summary: string
   repertoire: Repertoire
+  liturgia: string
+  cor: string
 }
 
 const PART_LABELS: Record<keyof Repertoire, { label: string; icon: string }> = {
@@ -42,12 +44,22 @@ const PART_LABELS: Record<keyof Repertoire, { label: string; icon: string }> = {
   recessional:   { label: 'Final',           icon: '🎶' },
 }
 
+const COR_MAP: Record<string, string> = {
+  'Roxo':     '#7c3aed',
+  'Verde':    '#16a34a',
+  'Branco':   '#e8e0d0',
+  'Vermelho': '#dc2626',
+  'Rosa':     '#db2777',
+}
+
 export default function Home() {
   const [selected, setSelected] = useState<Date>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
   const [repertoire, setRepertoire] = useState<Repertoire>()
   const [liturgySummary, setLiturgySummary] = useState<string>()
+  const [liturgiaTitulo, setLiturgiaTitulo] = useState<string>()
+  const [liturgiaCor, setLiturgiaCor] = useState<string>()
 
   async function handleGenerate() {
     if (!selected) return
@@ -56,6 +68,8 @@ export default function Home() {
     setError(undefined)
     setRepertoire(undefined)
     setLiturgySummary(undefined)
+    setLiturgiaTitulo(undefined)
+    setLiturgiaCor(undefined)
 
     try {
       const date = format(selected, 'yyyy-MM-dd')
@@ -74,6 +88,8 @@ export default function Home() {
 
       setRepertoire(data.repertoire)
       setLiturgySummary(data.liturgy_summary)
+      setLiturgiaTitulo(data.liturgia)
+      setLiturgiaCor(data.cor)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -112,7 +128,6 @@ export default function Home() {
           gap: 32px;
         }
 
-        /* HEADER */
         .header {
           text-align: center;
           padding-top: 16px;
@@ -146,7 +161,6 @@ export default function Home() {
           letter-spacing: 0.02em;
         }
 
-        /* DIVIDER */
         .divider {
           display: flex;
           align-items: center;
@@ -156,7 +170,6 @@ export default function Home() {
         .divider-line { flex: 1; height: 1px; background: #a08040; }
         .divider-icon { font-size: 14px; color: #a08040; }
 
-        /* CARD */
         .card {
           background: rgba(255,255,255,0.03);
           border: 1px solid rgba(160,128,64,0.15);
@@ -165,7 +178,6 @@ export default function Home() {
           backdrop-filter: blur(8px);
         }
 
-        /* DATE PICKER */
         .picker-wrapper {
           display: flex;
           flex-direction: column;
@@ -202,9 +214,7 @@ export default function Home() {
           font-weight: 500 !important;
           letter-spacing: 0.08em !important;
         }
-        .rdp-nav_button {
-          color: #a08040 !important;
-        }
+        .rdp-nav_button { color: #a08040 !important; }
         .rdp-day_outside { opacity: 0.25 !important; }
 
         .selected-date {
@@ -217,7 +227,6 @@ export default function Home() {
           font-weight: 500;
         }
 
-        /* BUTTON */
         .btn {
           width: 100%;
           padding: 16px 24px;
@@ -230,8 +239,6 @@ export default function Home() {
           letter-spacing: 0.06em;
           text-transform: uppercase;
           transition: all 0.2s ease;
-          position: relative;
-          overflow: hidden;
         }
         .btn-primary {
           background: linear-gradient(135deg, #c8a050 0%, #a07030 100%);
@@ -247,7 +254,6 @@ export default function Home() {
           cursor: not-allowed;
         }
 
-        /* LOADING */
         .loading-state {
           display: flex;
           flex-direction: column;
@@ -270,7 +276,6 @@ export default function Home() {
           text-transform: uppercase;
         }
 
-        /* ERROR */
         .error-box {
           background: rgba(200,60,60,0.08);
           border: 1px solid rgba(200,60,60,0.2);
@@ -281,7 +286,48 @@ export default function Home() {
           text-align: center;
         }
 
-        /* SUMMARY */
+        /* LITURGIA DO DIA */
+        .liturgia-titulo {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 20px 28px;
+          background: rgba(255,255,255,0.02);
+          border: 1px solid rgba(160,128,64,0.15);
+          border-radius: 14px;
+        }
+        .liturgia-cor-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          border: 1px solid rgba(255,255,255,0.15);
+        }
+        .liturgia-titulo-texto {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .liturgia-titulo-label {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: #a08040;
+        }
+        .liturgia-titulo-valor {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: #f0e8d8;
+        }
+        .liturgia-cor-label {
+          margin-left: auto;
+          font-size: 11px;
+          color: #605040;
+          letter-spacing: 0.04em;
+        }
+
         .summary-card {
           background: rgba(200,160,80,0.05);
           border: 1px solid rgba(200,160,80,0.2);
@@ -304,7 +350,6 @@ export default function Home() {
           font-style: italic;
         }
 
-        /* REPERTOIRE */
         .repertoire-card {
           background: rgba(255,255,255,0.03);
           border: 1px solid rgba(160,128,64,0.15);
@@ -346,10 +391,7 @@ export default function Home() {
           padding-top: 2px;
           gap: 6px;
         }
-        .song-icon {
-          font-size: 1.2rem;
-          line-height: 1;
-        }
+        .song-icon { font-size: 1.2rem; line-height: 1; }
         .song-icon-line {
           width: 1px;
           flex: 1;
@@ -390,7 +432,6 @@ export default function Home() {
       <div className="page">
         <div className="container">
 
-          {/* Header */}
           <div className="header">
             <p className="header-eyebrow">✦ Planejamento Litúrgico ✦</p>
             <h1>Liturgia<span>Track</span></h1>
@@ -403,7 +444,6 @@ export default function Home() {
             <div className="divider-line" />
           </div>
 
-          {/* Date Picker Card */}
           <div className="card">
             <div className="picker-wrapper">
               <DayPicker
@@ -432,7 +472,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Loading */}
           {loading && (
             <div className="loading-state">
               <div className="loading-cross">✝</div>
@@ -440,7 +479,23 @@ export default function Home() {
             </div>
           )}
 
-          {/* Liturgy Summary */}
+          {/* Título da Liturgia do Dia */}
+          {liturgiaTitulo && (
+            <div className="liturgia-titulo">
+              <div
+                className="liturgia-cor-dot"
+                style={{ backgroundColor: COR_MAP[liturgiaCor ?? ''] ?? '#a08040' }}
+              />
+              <div className="liturgia-titulo-texto">
+                <span className="liturgia-titulo-label">Liturgia do Dia</span>
+                <span className="liturgia-titulo-valor">{liturgiaTitulo}</span>
+              </div>
+              {liturgiaCor && (
+                <span className="liturgia-cor-label">{liturgiaCor}</span>
+              )}
+            </div>
+          )}
+
           {liturgySummary && (
             <div className="summary-card">
               <p className="summary-label">✦ Resumo da Liturgia</p>
@@ -448,7 +503,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Repertoire */}
           {repertoire && (
             <div className="repertoire-card">
               <div className="repertoire-header">

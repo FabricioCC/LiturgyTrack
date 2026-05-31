@@ -9,6 +9,15 @@ const supabase = createClient(
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!)
 
+function detectLiturgicalTime(liturgiaText: string): string {
+  const t = liturgiaText.toLowerCase()
+  if (t.includes('quaresma'))  return 'quaresma'
+  if (t.includes('advento'))   return 'advento'
+  if (t.includes('natal'))     return 'natal'
+  if (t.includes('pascal') || t.includes('páscoa') || t.includes('pascoa')) return 'pascal'
+  return 'comum'
+}
+
 export async function POST(req: NextRequest) {
   const { date, liturgy } = await req.json()
 
@@ -17,88 +26,82 @@ export async function POST(req: NextRequest) {
   }
 
   console.log(`\n📅 Generating repertoire for ${date}`)
-  console.log('📖 Liturgy received:', JSON.stringify(liturgy, null, 2))
 
-  // Fetch active songs from catalog
+  const liturgicalTime = detectLiturgicalTime(liturgy.liturgia ?? '')
+  console.log(`🕯️ Tempo litúrgico detectado: ${liturgicalTime}`)
+
   const { data: songs, error } = await supabase
     .from('songs')
-    .select('id, title, artist, liturgical_time, mass_part, themes, is_paroquial')
+    .select('id, title, artist, mass_part, themes, is_paroquial')
     .eq('is_active', true)
+    .or(`liturgical_time.cs.{"${liturgicalTime}"},liturgical_time.cs.{"comum"}`)
+    .order('is_paroquial', { ascending: false })
 
   if (error) {
     console.error('❌ Failed to fetch songs:', error)
     return NextResponse.json({ error: 'Failed to fetch songs' }, { status: 500 })
   }
 
-  console.log(`🎵 Catalog loaded: ${songs.length} songs`)
+  console.log(`🎵 Catálogo filtrado: ${songs.length} músicas para o tempo "${liturgicalTime}"`)
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   const prompt = `
-You are an expert in Brazilian Catholic liturgical music.
-All your text responses MUST be in Brazilian Portuguese.
+Você é um especialista em música litúrgica católica brasileira.
+Responda SEMPRE em português do Brasil.
 
-The liturgy for ${date} contains the following texts:
-- Gospel: ${liturgy.evangelhoRef ?? ''} — ${liturgy.evangelho ?? ''}
-- First Reading: ${liturgy.primeiraLeituraRef ?? ''} — ${liturgy.primeiraLeitura ?? ''}
-- Psalm: ${liturgy.salmoRef ?? ''}
-- Second Reading: ${liturgy.segundaLeituraRef ?? ''} — ${liturgy.segundaLeitura ?? ''}
+A liturgia do dia ${date} (${liturgy.liturgia ?? ''}) contém:
+- Evangelho: ${liturgy.evangelhoRef ?? ''} — ${liturgy.evangelho ?? ''}
+- Primeira Leitura: ${liturgy.primeiraLeituraRef ?? ''} — ${liturgy.primeiraLeitura ?? ''}
+- Salmo: ${liturgy.salmoRef ?? ''}
+- Segunda Leitura: ${liturgy.segundaLeituraRef ?? ''} — ${liturgy.segundaLeitura ?? ''}
 
-Your task has two parts:
+Sua tarefa tem duas partes:
 
-PART 1 — Summarize the liturgy:
-Write a short summary (3 to 5 sentences) in Portuguese explaining the main theme and message of today's liturgy. This will help the musician understand the spiritual context of the Mass.
+PARTE 1 — Resumo da liturgia:
+Escreva um resumo curto (3 a 5 frases) explicando o tema principal e a mensagem da liturgia de hoje.
+Isso ajudará o músico a entender o contexto espiritual da Missa.
 
-PART 2 — Choose songs:
-Based on the liturgy texts and the catalog below, suggest one song for each part of the Mass.
-Prefer songs marked with is_paroquial: true when available.
-The "justification" field must be in Portuguese, explaining why the song fits the liturgy of the day.
+PARTE 2 — Escolha das músicas:
+Com base nos textos da liturgia e no catálogo abaixo, sugira uma música para cada parte da Missa.
+Prefira músicas com is_paroquial: true quando disponíveis.
+O campo "justification" deve explicar em português por que a música se encaixa na liturgia do dia.
 
-CATALOG:
+CATÁLOGO (já filtrado para o tempo litúrgico de hoje):
 ${JSON.stringify(songs)}
 
-Return ONLY a JSON object in this exact format, no extra text:
+Retorne APENAS um objeto JSON neste formato exato, sem texto adicional:
 {
   "liturgy_summary": "Resumo em português aqui...",
   "repertoire": {
-    "entrance": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "penitential": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "gloria": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "acclamation": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "offertory": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "holy": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "communion": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
+    "entrance":       { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
+    "penitential":    { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
+    "gloria":         { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
+    "acclamation":    { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
+    "offertory":      { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
+    "holy":           { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
+    "communion":      { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
     "post_communion": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "recessional": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." }
+    "recessional":    { "id": "uuid", "title": "...", "artist": "...", "justification": "..." }
   }
 }
 `
 
-  console.log('🤖 Sending prompt to Gemini...')
-
-  const result = await model.generateContent(prompt)
-  const text = result.response.text()
-
-  console.log('✅ Gemini raw response:')
-  console.log(text)
+  console.log('🤖 Enviando prompt para o Gemini...')
 
   try {
+    const result = await model.generateContent(prompt)
+    const text = result.response.text()
     const clean = text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(clean)
 
-    console.log('\n📋 Liturgy Summary:')
-    console.log(parsed.liturgy_summary)
-
-    console.log('\n🎼 Suggested repertoire:')
-    Object.entries(parsed.repertoire).forEach(([part, song]: [string, any]) => {
-      console.log(`  ${part}: ${song.title} — ${song.artist}`)
-      console.log(`    → ${song.justification}`)
+    return NextResponse.json({
+      ...parsed,
+      liturgia: liturgy.liturgia ?? '',
+      cor: liturgy.cor ?? '',
     })
-
-    return NextResponse.json(parsed)
   } catch (err) {
-    console.error('❌ Failed to parse Gemini response:', err)
-    console.error('Raw text was:', text)
+    console.error('❌ Erro ao processar resposta do Gemini:', err)
     return NextResponse.json({ error: 'Failed to parse Gemini response' }, { status: 500 })
   }
 }
