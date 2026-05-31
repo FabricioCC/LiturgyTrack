@@ -31,16 +31,35 @@ const LOTES = [
     label: 'Lote 5 — Toca de Assis, Amor e Adoração',
     instrucao: 'Foque em composições de Toca de Assis, Amor e Adoração',
   },
+    {
+    label: 'Lote 6 — Clássicas e Padre Zezinho',
+    instrucao: 'Foque em músicas clássicas do repertório católico brasileiro, composições de Padre Zezinho, e hinos tradicionais.',
+  },
+  {
+    label: 'Lote 7 — Comunidade Católica Shalom',
+    instrucao: 'Foque em músicas da Comunidade Católica Shalom, Missionário Shalom'
+  },
+  {
+    label: 'Lote 8 — Walmir Alencar, Adoração e Vida, Eliana Ribeiro',
+    instrucao: 'Foque em composições de Walmir Alencar, Adoração e Vida, Eliana RibeirO.',
+  },
+    {
+    label: 'Lote 9 — Frei Gilson, Hesed, Ir Kelly Patricia',
+    instrucao: 'Foque em composições de Frei Gilson, Hesed, Ir Kelly Patricia',
+  },    {
+    label: 'Lote 10 — Toca de Assis, Amor e Adoração',
+    instrucao: 'Foque em composições de Toca de Assis, Amor e Adoração',
+  },
 ]
 
 async function gerarLote(instrucao: string, jaInseridas: string[]): Promise<any[]> {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   const prompt = `
-Você é um especialista em músicas do repertório católica brasileira para tocar na Missa.
+Você é um especialista em música litúrgica católica brasileira.
 ${instrucao}
 
-Liste 50 músicas. NÃO inclua nenhuma dessas que já foram inseridas:
+Liste 20 músicas. NÃO inclua nenhuma dessas que já foram inseridas:
 ${jaInseridas.length > 0 ? jaInseridas.join(', ') : '(nenhuma ainda)'}
 
 Para cada música, retorne um objeto JSON com exatamente estes campos:
@@ -50,9 +69,9 @@ Para cada música, retorne um objeto JSON com exatamente estes campos:
   Valores possíveis: "comum", "advento", "natal", "quaresma", "pascal"
 - mass_part: array com partes da missa onde é usada.
   Valores possíveis: "entrada", "ato_penitencial", "gloria", "salmo", "ofertorio", "santo", "cordeiro", "comunhao", "final"
-- themes: array com 2 a 4 temas teológicos em português, como "misericordia", "ressurreicao", "eucaristia", "maria", "louvor", "gratidao", "vocacao", "esperanca", "reconciliacao"
+- themes: array com 2 a 4 temas teológicos em português
 
-Retorne APENAS um array JSON válido com os 50 objetos, sem texto antes ou depois, sem markdown, sem blocos de código.
+Retorne APENAS um array JSON válido com os 20 objetos, sem texto antes ou depois, sem markdown, sem blocos de código.
 `
 
   const result = await model.generateContent(prompt)
@@ -67,19 +86,19 @@ Retorne APENAS um array JSON válido com os 50 objetos, sem texto antes ou depoi
 }
 
 async function seedSongs() {
-  const titlosJaInseridos: string[] = []
+  const titulosJaInseridos: string[] = []
 
   for (const lote of LOTES) {
-    console.log(`\n🎵 Gerando ${lote.label}...`)
+    console.log(`\n🎵 Gerando ${lote.label} (com letras)...`)
 
-    const songs = await gerarLote(lote.instrucao, titlosJaInseridos)
+    const songs = await gerarLote(lote.instrucao, titulosJaInseridos)
 
-    // Filtra duplicatas pelo título (case insensitive)
     const semDuplicatas = songs.filter(
-      (s: any) => !titlosJaInseridos.includes(s.title?.toLowerCase())
+      (s: any) => !titulosJaInseridos.includes(s.title?.toLowerCase())
     )
 
-    console.log(`✅ ${semDuplicatas.length} músicas novas. Inserindo no Supabase...`)
+    const comLetra = semDuplicatas.filter((s: any) => s.lyrics).length
+    console.log(`✅ ${semDuplicatas.length} músicas | 🎶 ${comLetra} com letra | ⚠️  ${semDuplicatas.length - comLetra} sem letra`)
 
     const { error } = await supabase.from('songs').insert(
       semDuplicatas.map((s: any) => ({
@@ -93,17 +112,15 @@ async function seedSongs() {
     if (error) {
       console.error(`❌ Erro no ${lote.label}:`, error)
     } else {
-      // Registra os títulos inseridos para o próximo lote
-      semDuplicatas.forEach((s: any) => titlosJaInseridos.push(s.title?.toLowerCase()))
-      console.log(`🎉 ${lote.label} inserido! Total acumulado: ${titlosJaInseridos.length}`)
+      semDuplicatas.forEach((s: any) => titulosJaInseridos.push(s.title?.toLowerCase()))
+      console.log(`🎉 ${lote.label} inserido! Total acumulado: ${titulosJaInseridos.length}`)
     }
 
-    // Pausa entre lotes para não sobrecarregar a API
     console.log('⏳ Aguardando 3s antes do próximo lote...')
     await new Promise(r => setTimeout(r, 3000))
   }
 
-  console.log(`\n✅ SEED COMPLETO — ${titlosJaInseridos.length} músicas inseridas!`)
+  console.log(`\n✅ SEED COMPLETO — ${titulosJaInseridos.length} músicas inseridas!`)
 }
 
 seedSongs()

@@ -394,7 +394,7 @@ export default function Home() {
           <div className="header">
             <p className="header-eyebrow">✦ Planejamento Litúrgico ✦</p>
             <h1>Liturgia<span>Track</span></h1>
-            <p>Selecione a data da missa para gerar o repertório com IA</p>
+            <p>Selecione a data da Missa para gerar o repertório com IA</p>
           </div>
 
           <div className="divider">
