@@ -9,17 +9,60 @@ const supabase = createClient(
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!)
 
-function detectLiturgicalTime(liturgiaText: string): string {
-  const t = liturgiaText.toLowerCase()
-  if (t.includes('quaresma'))  return 'quaresma'
-  if (t.includes('advento'))   return 'advento'
-  if (t.includes('natal'))     return 'natal'
+function detectLiturgicalTime(liturgyText: string): string {
+  const t = liturgyText.toLowerCase()
+  if (t.includes('quaresma')) return 'quaresma'
+  if (t.includes('advento'))  return 'advento'
+  if (t.includes('natal'))    return 'natal'
   if (t.includes('pascal') || t.includes('páscoa') || t.includes('pascoa')) return 'pascal'
   return 'comum'
 }
 
+async function getUserPreferences(userId: string | null): Promise<string> {
+  if (!userId) return ''
+
+  const { data } = await supabase
+    .from('repertoire_feedback')
+    .select(`
+      mass_part,
+      was_accepted,
+      chosen:chosen_song_id (title, artist)
+    `)
+    .eq('user_id', userId)
+    .eq('was_accepted', true)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (!data || data.length === 0) return ''
+
+  // Group by mass part and count frequency
+  const freq: Record<string, Record<string, number>> = {}
+  for (const row of data) {
+    const part = row.mass_part
+    const song = row.chosen as any
+    if (!song) continue
+    const key = `${song.title} — ${song.artist}`
+    if (!freq[part]) freq[part] = {}
+    freq[part][key] = (freq[part][key] ?? 0) + 1
+  }
+
+  const lines = Object.entries(freq).map(([part, songs]) => {
+    const top = Object.entries(songs)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([name, count]) => `"${name}" (${count}x)`)
+      .join(', ')
+    return `- ${part}: ${top}`
+  })
+
+  return `
+Histórico de preferências deste músico (use como critério de desempate, nunca sobre a liturgia):
+${lines.join('\n')}
+`
+}
+
 export async function POST(req: NextRequest) {
-  const { date, liturgy } = await req.json()
+  const { date, liturgy, user_id } = await req.json()
 
   if (!date || !liturgy) {
     return NextResponse.json({ error: 'Date and liturgy are required' }, { status: 400 })
@@ -28,21 +71,26 @@ export async function POST(req: NextRequest) {
   console.log(`\n📅 Generating repertoire for ${date}`)
 
   const liturgicalTime = detectLiturgicalTime(liturgy.liturgia ?? '')
-  console.log(`🕯️ Tempo litúrgico detectado: ${liturgicalTime}`)
+  console.log(`🕯️ Liturgical time detected: ${liturgicalTime}`)
 
-  const { data: songs, error } = await supabase
-    .from('songs')
-    .select('id, title, artist, mass_part, themes, is_paroquial')
-    .eq('is_active', true)
-    .or(`liturgical_time.cs.{"${liturgicalTime}"},liturgical_time.cs.{"comum"}`)
-    .order('is_paroquial', { ascending: false })
+  const [songsResult, preferences] = await Promise.all([
+    supabase
+      .from('songs')
+      .select('id, title, artist, mass_part, themes, is_paroquial')
+      .eq('is_active', true)
+      .or(`liturgical_time.cs.{"${liturgicalTime}"},liturgical_time.cs.{"comum"}`)
+      .order('is_paroquial', { ascending: false }),
+    getUserPreferences(user_id ?? null),
+  ])
 
-  if (error) {
-    console.error('❌ Failed to fetch songs:', error)
+  if (songsResult.error) {
+    console.error('❌ Failed to fetch songs:', songsResult.error)
     return NextResponse.json({ error: 'Failed to fetch songs' }, { status: 500 })
   }
 
-  console.log(`🎵 Catálogo filtrado: ${songs.length} músicas para o tempo "${liturgicalTime}"`)
+  const songs = songsResult.data
+  console.log(`🎵 Filtered catalog: ${songs.length} songs for "${liturgicalTime}"`)
+  if (preferences) console.log('👤 User preferences loaded')
 
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
@@ -56,18 +104,21 @@ A liturgia do dia ${date} (${liturgy.liturgia ?? ''}) contém:
 - Salmo: ${liturgy.salmoRef ?? ''}
 - Segunda Leitura: ${liturgy.segundaLeituraRef ?? ''} — ${liturgy.segundaLeitura ?? ''}
 
+${preferences}
+
 Sua tarefa tem duas partes:
 
 PARTE 1 — Resumo da liturgia:
 Escreva um resumo curto (3 a 5 frases) explicando o tema principal e a mensagem da liturgia de hoje.
-Isso ajudará o músico a entender o contexto espiritual da Missa.
 
 PARTE 2 — Escolha das músicas:
 Com base nos textos da liturgia e no catálogo abaixo, sugira uma música para cada parte da Missa.
 Prefira músicas com is_paroquial: true quando disponíveis.
+Se houver histórico de preferências, use-o como critério de desempate entre músicas igualmente adequadas.
+A adequação à liturgia do dia é sempre a prioridade máxima.
 O campo "justification" deve explicar em português por que a música se encaixa na liturgia do dia.
 
-CATÁLOGO (já filtrado para o tempo litúrgico de hoje):
+CATÁLOGO:
 ${JSON.stringify(songs)}
 
 Retorne APENAS um objeto JSON neste formato exato, sem texto adicional:
@@ -87,8 +138,6 @@ Retorne APENAS um objeto JSON neste formato exato, sem texto adicional:
 }
 `
 
-  console.log('🤖 Enviando prompt para o Gemini...')
-
   try {
     const result = await model.generateContent(prompt)
     const text = result.response.text()
@@ -101,7 +150,7 @@ Retorne APENAS um objeto JSON neste formato exato, sem texto adicional:
       cor: liturgy.cor ?? '',
     })
   } catch (err) {
-    console.error('❌ Erro ao processar resposta do Gemini:', err)
+    console.error('❌ Failed to process Gemini response:', err)
     return NextResponse.json({ error: 'Failed to parse Gemini response' }, { status: 500 })
   }
 }

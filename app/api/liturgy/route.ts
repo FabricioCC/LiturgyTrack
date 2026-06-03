@@ -8,7 +8,7 @@ const supabase = createClient(
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const date = searchParams.get('date') // format: YYYY-MM-DD
+  const date = searchParams.get('date')
 
   if (!date) {
     return NextResponse.json({ error: 'Date is required' }, { status: 400 })
@@ -26,13 +26,12 @@ export async function GET(req: NextRequest) {
     .single()
 
   if (cached?.liturgy_data) {
-    console.log('✅ Liturgy from cache')
     return NextResponse.json(cached.liturgy_data)
   }
 
   // 2. Fetch from external API
   const url = `https://liturgia.up.railway.app/v2/?dia=${day}&mes=${month}&ano=${year}`
-  const res = await fetch(url)
+  const res = await fetch(url, { next: { revalidate: 86400 } })
 
   if (!res.ok) {
     return NextResponse.json({ error: 'Failed to fetch liturgy' }, { status: 502 })
