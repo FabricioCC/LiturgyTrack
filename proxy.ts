@@ -25,18 +25,12 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  // Redirect to login if not authenticated and not already on auth page
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
+  // Refresh session if it exists — but never block unauthenticated users
+  await supabase.auth.getUser()
 
   return supabaseResponse
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|login).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }

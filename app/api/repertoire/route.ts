@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   const [songsResult, preferences] = await Promise.all([
     supabase
       .from('songs')
-      .select('id, title, artist, mass_part, themes, is_paroquial')
+      .select('id, title, artist, mass_part, themes, is_paroquial, letras_url')
       .eq('is_active', true)
       .or(`liturgical_time.cs.{"${liturgicalTime}"},liturgical_time.cs.{"comum"}`)
       .order('is_paroquial', { ascending: false }),
@@ -113,7 +113,6 @@ Escreva um resumo curto (3 a 5 frases) explicando o tema principal e a mensagem 
 
 PARTE 2 — Escolha das músicas:
 Com base nos textos da liturgia e no catálogo abaixo, sugira uma música para cada parte da Missa.
-Prefira músicas com is_paroquial: true quando disponíveis.
 Se houver histórico de preferências, use-o como critério de desempate entre músicas igualmente adequadas.
 A adequação à liturgia do dia é sempre a prioridade máxima.
 O campo "justification" deve explicar em português por que a música se encaixa na liturgia do dia.
@@ -125,15 +124,15 @@ Retorne APENAS um objeto JSON neste formato exato, sem texto adicional:
 {
   "liturgy_summary": "Resumo em português aqui...",
   "repertoire": {
-    "entrance":       { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "penitential":    { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "gloria":         { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "acclamation":    { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "offertory":      { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "holy":           { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "communion":      { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "post_communion": { "id": "uuid", "title": "...", "artist": "...", "justification": "..." },
-    "recessional":    { "id": "uuid", "title": "...", "artist": "...", "justification": "..." }
+    "entrance":       { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." },
+    "penitential":    { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." },
+    "gloria":         { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." },
+    "acclamation":    { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." },
+    "offertory":      { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." },
+    "holy":           { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." },
+    "communion":      { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." },
+    "post_communion": { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." },
+    "recessional":    { "id": "uuid", "title": "...", "artist": "...", "justification": "...", letras_url: "https://..." }
   }
 }
 `
